@@ -1,0 +1,10 @@
+#!/bin/bash
+source ./config.sh
+columns=("Correlativo" "CodigoCategoria")
+
+duckdb -s "SELECT * FROM read_csv_auto('${table}.csv') LIMIT 2"
+duckdb -s "COPY (SELECT ${columns[0]}, ${columns[1]} FROM read_csv_auto('${table}.csv') removequotes) TO '/dev/stdout' (FORMAT CSV)" > ./table_mod.csv
+aws s3 cp ./table_mod.csv s3://${S3_BUCKET}/${table}.csv
+psql -c "DROP TABLE IF EXISTS  ${schema}.${table};CREATE table ${schema}.${table} (${columns[0]} INT, ${columns[1]} INT);
+         COPY ${schema}.${table} FROM 's3://${S3_BUCKET}/${table}.csv' iam_role '${iam_role}' CSV IGNOREHEADER 1 ENCODING AS UTF8;"
+psql --pset=format=aligned  -c "SELECT * FROM ${schema}.${table} LIMIT 2"
